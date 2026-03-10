@@ -1,0 +1,14 @@
+[project]
+name = "nonprofit-ops-api"
+version = "0.1.0"
+description = "Tenant-aware API for nonprofit operations."
+requires-python = ">=3.12"
+dependencies = [
+  "django>=5.1,<5.2",
+  "djangorestframework>=3.15,<3.16",
+  "psycopg[binary]>=3.2,<3.3"
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
