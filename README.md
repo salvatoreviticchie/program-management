@@ -46,3 +46,38 @@ This initial scaffold includes:
 2. Add authentication, RBAC, and tenant scoping.
 3. Build the first Next.js shell for internal operations.
 4. Add the first vertical workflow: grant applications and review.
+
+## Local Development Quickstart
+
+### Web (Next.js)
+
+```bash
+cd apps/web
+npm install
+npm run dev
+```
+
+Open: `http://localhost:3000`
+
+### API (Django)
+
+Python venv support is required on Ubuntu/Debian:
+
+```bash
+sudo apt-get update && sudo apt-get install -y python3.12-venv
+```
+
+Then run:
+
+```bash
+cd apps/api
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -e .
+python manage.py makemigrations platform_core grants
+python manage.py migrate
+python manage.py runserver 0.0.0.0:8000
+```
+
+Healthcheck: `http://localhost:8000/health/`
