@@ -11,7 +11,7 @@ Build a cloud product for nonprofits, implementers, and grantmakers that combine
 - monitoring, evaluation, and learning
 - external stakeholder portals
 
-The system should preserve the useful operational patterns of Salesforce Nonprofit Cloud and AMP-style impact management while reducing licensing cost and increasing product control.
+The system should preserve useful operational patterns while reducing licensing cost and increasing product control.
 
 ## User Experiences
 

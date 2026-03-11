@@ -8,7 +8,7 @@ This repository is the starting point for a multi-tenant SaaS platform that comb
 - MEL / impact measurement
 - external portals
 
-The target product replaces the combination of Salesforce Nonprofit Cloud and AMP-style program and impact management with a cheaper, cloud-native stack.
+The target product delivers a modern, cloud-native program and impact management stack with lower operating cost and stronger product control.
 
 ## Architecture
 
