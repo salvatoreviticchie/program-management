@@ -54,6 +54,31 @@ export default function ModulePage({ moduleKey }: { moduleKey: ModuleKey }) {
     ...Array.from(new Set(data.records.map((record) => record.status))),
   ];
 
+  async function refreshModule() {
+    const res = await fetch(`/api/${moduleKey}`);
+    const payload = await res.json();
+    if (payload?.data) setData(payload.data);
+  }
+
+  async function createRecord() {
+    await fetch(`/api/${moduleKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: `New ${data.title} item`, status: "New" }),
+    });
+    await refreshModule();
+  }
+
+  async function updateSelected(patch: Partial<ModuleRecord>) {
+    if (!selected) return;
+    await fetch(`/api/modules/${moduleKey}/${selected.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    await refreshModule();
+  }
+
   return (
     <main style={{ padding: 24, fontFamily: "Inter, system-ui, sans-serif" }}>
       <header style={{ marginBottom: 16 }}>
@@ -143,9 +168,9 @@ export default function ModulePage({ moduleKey }: { moduleKey: ModuleKey }) {
           <h3 style={{ marginTop: 0 }}>Record detail</h3>
           {selected ? <RecordDetail record={selected} /> : <p>No record selected.</p>}
           <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
-            <button style={btn}>AI Summary</button>
-            <button style={btn}>Draft Note</button>
-            <button style={btn}>Request Follow-up</button>
+            <button style={btn} onClick={createRecord}>Create Record</button>
+            <button style={btn} onClick={() => updateSelected({ status: "In Progress" })}>Mark In Progress</button>
+            <button style={btn} onClick={() => updateSelected({ status: "Needs Follow-up" })}>Request Follow-up</button>
           </div>
         </aside>
       </section>
