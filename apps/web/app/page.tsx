@@ -1,57 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-
-type Stage = "intake" | "review" | "committee" | "approved" | "declined";
-
-type GrantRecord = {
-  id: string;
-  organization: string;
-  program: string;
-  amount: number;
-  owner: string;
-  stage: Stage;
-  submittedAt: string;
-};
-
-const grantsSeed: GrantRecord[] = [
-  {
-    id: "GR-1042",
-    organization: "River Youth Collective",
-    program: "STEM Labs Expansion",
-    amount: 85000,
-    owner: "Maya R.",
-    stage: "review",
-    submittedAt: "2026-03-09",
-  },
-  {
-    id: "GR-1043",
-    organization: "Northside Food Hub",
-    program: "Community Pantry Ops",
-    amount: 120000,
-    owner: "Luca V.",
-    stage: "committee",
-    submittedAt: "2026-03-07",
-  },
-  {
-    id: "GR-1044",
-    organization: "Greenway Schools Network",
-    program: "Climate Literacy Program",
-    amount: 65000,
-    owner: "Maya R.",
-    stage: "intake",
-    submittedAt: "2026-03-10",
-  },
-  {
-    id: "GR-1045",
-    organization: "Bridge Mentors",
-    program: "Mentorship Cohort 2026",
-    amount: 93000,
-    owner: "Andre C.",
-    stage: "approved",
-    submittedAt: "2026-03-05",
-  },
-];
+import { useEffect, useMemo, useState } from "react";
+import type { GrantRecord, Stage } from "../lib/mockdb";
 
 const nav = [
   "Home",
@@ -89,24 +39,32 @@ function money(value: number) {
 }
 
 export default function HomePage() {
-  const [records, setRecords] = useState(grantsSeed);
+  const [records, setRecords] = useState<GrantRecord[]>([]);
   const [activeModule, setActiveModule] = useState("Grants");
-  const [selectedId, setSelectedId] = useState(grantsSeed[0].id);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [selectedView, setSelectedView] = useState("Active pipeline");
+  const [tone, setTone] = useState<"friendly" | "professional" | "short">("professional");
+
+  useEffect(() => {
+    async function load() {
+      const res = await fetch("/api/grants");
+      const payload = await res.json();
+      setRecords(payload.data ?? []);
+      if (payload.data?.length) setSelectedId(payload.data[0].id);
+    }
+    load();
+  }, []);
 
   const filtered = useMemo(() => {
     const term = search.toLowerCase().trim();
     if (!term) return records;
 
-    return records.filter((row) => {
-      return (
-        row.id.toLowerCase().includes(term) ||
-        row.organization.toLowerCase().includes(term) ||
-        row.program.toLowerCase().includes(term) ||
-        row.owner.toLowerCase().includes(term)
-      );
-    });
+    return records.filter((row) =>
+      [row.id, row.organization, row.program, row.owner].some((field) =>
+        field.toLowerCase().includes(term),
+      ),
+    );
   }, [records, search]);
 
   const selected =
@@ -123,31 +81,36 @@ export default function HomePage() {
     return { inReview, committee, approved, totalPipeline };
   }, [records]);
 
-  function moveStage(direction: "next" | "previous") {
+  async function patchSelected(payload: Partial<GrantRecord>) {
     if (!selected) return;
-    const order: Stage[] = [
-      "intake",
-      "review",
-      "committee",
-      "approved",
-      "declined",
-    ];
+    const res = await fetch(`/api/grants/${selected.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    setRecords((curr) => curr.map((row) => (row.id === selected.id ? data.data : row)));
+  }
 
+  async function moveStage(direction: "next" | "previous") {
+    if (!selected) return;
+    const order: Stage[] = ["intake", "review", "committee", "approved", "declined"];
     const current = order.indexOf(selected.stage);
     const nextIndex = direction === "next" ? current + 1 : current - 1;
     if (nextIndex < 0 || nextIndex >= order.length) return;
+    await patchSelected({ stage: order[nextIndex] });
+  }
 
-    const nextStage = order[nextIndex];
-    setRecords((currentRows) =>
-      currentRows.map((row) =>
-        row.id === selected.id
-          ? {
-              ...row,
-              stage: nextStage,
-            }
-          : row,
-      ),
-    );
+  async function rewriteNote() {
+    if (!selected) return;
+    const text = selected.note || `${selected.organization} - ${selected.program}`;
+    const res = await fetch("/api/ai/rewrite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, tone }),
+    });
+    const payload = await res.json();
+    await patchSelected({ note: payload.data.rewritten });
   }
 
   return (
@@ -175,84 +138,36 @@ export default function HomePage() {
           </div>
           <div className="top-actions">
             <button>New Application</button>
-            <button className="primary">Run AI Summary</button>
+            <button className="primary" onClick={rewriteNote}>Run AI Summary</button>
           </div>
         </header>
 
         <section className="kpis">
-          <article>
-            <span>In review</span>
-            <strong>{summary.inReview}</strong>
-          </article>
-          <article>
-            <span>Committee queue</span>
-            <strong>{summary.committee}</strong>
-          </article>
-          <article>
-            <span>Approved</span>
-            <strong>{summary.approved}</strong>
-          </article>
-          <article>
-            <span>Pipeline value</span>
-            <strong>{money(summary.totalPipeline)}</strong>
-          </article>
+          <article><span>In review</span><strong>{summary.inReview}</strong></article>
+          <article><span>Committee queue</span><strong>{summary.committee}</strong></article>
+          <article><span>Approved</span><strong>{summary.approved}</strong></article>
+          <article><span>Pipeline value</span><strong>{money(summary.totalPipeline)}</strong></article>
         </section>
 
         <section className="workspace">
           <div className="table-area panel">
             <div className="table-toolbar">
               <div className="left">
-                <select
-                  value={selectedView}
-                  onChange={(event) => setSelectedView(event.target.value)}
-                >
-                  <option>Active pipeline</option>
-                  <option>Needs review</option>
-                  <option>Approved this month</option>
+                <select value={selectedView} onChange={(e) => setSelectedView(e.target.value)}>
+                  <option>Active pipeline</option><option>Needs review</option><option>Approved this month</option>
                 </select>
-                <div className="chips">
-                  <span>Stage: All</span>
-                  <span>Owner: My team</span>
-                  <span>Amount: &gt;$50k</span>
-                </div>
+                <div className="chips"><span>Stage: All</span><span>Owner: My team</span><span>Amount: &gt;$50k</span></div>
               </div>
-              <input
-                placeholder="Search id, org, program, owner"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-              />
+              <input placeholder="Search id, org, program, owner" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
 
             <table>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Organization</th>
-                  <th>Program</th>
-                  <th>Amount</th>
-                  <th>Owner</th>
-                  <th>Stage</th>
-                  <th>Submitted</th>
-                </tr>
-              </thead>
+              <thead><tr><th>ID</th><th>Organization</th><th>Program</th><th>Amount</th><th>Owner</th><th>Stage</th><th>Submitted</th></tr></thead>
               <tbody>
                 {filtered.map((row) => (
-                  <tr
-                    key={row.id}
-                    className={selected?.id === row.id ? "selected" : ""}
-                    onClick={() => setSelectedId(row.id)}
-                  >
-                    <td>{row.id}</td>
-                    <td>{row.organization}</td>
-                    <td>{row.program}</td>
-                    <td>{money(row.amount)}</td>
-                    <td>{row.owner}</td>
-                    <td>
-                      <span className={`badge ${stageTone[row.stage]}`}>
-                        {stageLabels[row.stage]}
-                      </span>
-                    </td>
-                    <td>{row.submittedAt}</td>
+                  <tr key={row.id} className={selected?.id === row.id ? "selected" : ""} onClick={() => setSelectedId(row.id)}>
+                    <td>{row.id}</td><td>{row.organization}</td><td>{row.program}</td><td>{money(row.amount)}</td><td>{row.owner}</td>
+                    <td><span className={`badge ${stageTone[row.stage]}`}>{stageLabels[row.stage]}</span></td><td>{row.submittedAt}</td>
                   </tr>
                 ))}
               </tbody>
@@ -266,49 +181,29 @@ export default function HomePage() {
                 <p className="record-id">{selected.id}</p>
                 <h3>{selected.organization}</h3>
                 <p>{selected.program}</p>
-
                 <dl>
-                  <div>
-                    <dt>Stage</dt>
-                    <dd>
-                      <span className={`badge ${stageTone[selected.stage]}`}>
-                        {stageLabels[selected.stage]}
-                      </span>
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Amount</dt>
-                    <dd>{money(selected.amount)}</dd>
-                  </div>
-                  <div>
-                    <dt>Owner</dt>
-                    <dd>{selected.owner}</dd>
-                  </div>
+                  <div><dt>Stage</dt><dd><span className={`badge ${stageTone[selected.stage]}`}>{stageLabels[selected.stage]}</span></dd></div>
+                  <div><dt>Amount</dt><dd>{money(selected.amount)}</dd></div>
+                  <div><dt>Owner</dt><dd>{selected.owner}</dd></div>
                 </dl>
-
-                <div className="detail-actions">
-                  <button onClick={() => moveStage("previous")}>Previous stage</button>
-                  <button onClick={() => moveStage("next")}>Advance stage</button>
-                </div>
+                <div className="detail-actions"><button onClick={() => moveStage("previous")}>Previous stage</button><button onClick={() => moveStage("next")}>Advance stage</button></div>
               </>
-            ) : (
-              <p>No record selected.</p>
-            )}
+            ) : <p>No record selected.</p>}
           </aside>
 
           <aside className="ai-area panel">
             <h2>AI Copilot</h2>
             <p>Context-aware assistant for grant ops.</p>
-            <ul>
-              <li>Summarize this application for committee review</li>
-              <li>Draft clarifying questions for applicant</li>
-              <li>Suggest risk flags based on submitted documents</li>
-              <li>Generate internal note in friendly/professional tone</li>
-            </ul>
-            <button className="primary">Open Copilot</button>
-            <p className="small">
-              Agent Lite mode: all write actions require your confirmation.
-            </p>
+            <label>
+              Tone
+              <select value={tone} onChange={(e) => setTone(e.target.value as "friendly" | "professional" | "short")}>
+                <option value="professional">Professional</option>
+                <option value="friendly">Friendly</option>
+                <option value="short">Short</option>
+              </select>
+            </label>
+            <button className="primary" onClick={rewriteNote}>Rewrite selected note</button>
+            <p className="small">{selected?.note ?? "No note yet."}</p>
           </aside>
         </section>
       </main>
