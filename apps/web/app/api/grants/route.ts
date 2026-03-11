@@ -1,6 +1,5 @@
-import { NextResponse } from "next/server";
-import { grantsDb } from "../../../lib/mockdb";
+import { getModuleData } from "../_helpers/module-route";
 
 export async function GET() {
-  return NextResponse.json({ data: grantsDb });
+  return getModuleData("grants");
 }
