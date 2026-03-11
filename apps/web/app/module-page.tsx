@@ -1,20 +1,40 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { moduleConfigs, type ModuleKey, type ModuleRecord } from "../lib/module-data";
 
+type ApiModuleData = {
+  title: string;
+  subtitle: string;
+  records: ModuleRecord[];
+  columns: Array<{ key: keyof ModuleRecord; label: string }>;
+};
+
 export default function ModulePage({ moduleKey }: { moduleKey: ModuleKey }) {
-  const config = moduleConfigs[moduleKey];
+  const fallback = moduleConfigs[moduleKey];
+  const [data, setData] = useState<ApiModuleData>(fallback);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
   const [selectedId, setSelectedId] = useState<string | null>(
-    config.records[0]?.id ?? null,
+    fallback.records[0]?.id ?? null,
   );
+
+  useEffect(() => {
+    async function load() {
+      const res = await fetch(`/api/${moduleKey}`);
+      const payload = await res.json();
+      if (payload?.data) {
+        setData(payload.data);
+        setSelectedId(payload.data.records?.[0]?.id ?? null);
+      }
+    }
+    load();
+  }, [moduleKey]);
 
   const filtered = useMemo(() => {
     const term = search.toLowerCase().trim();
-    return config.records.filter((record) => {
+    return data.records.filter((record) => {
       const matchStatus = status === "all" ? true : record.status === status;
       const matchText =
         !term ||
@@ -24,22 +44,22 @@ export default function ModulePage({ moduleKey }: { moduleKey: ModuleKey }) {
 
       return matchStatus && matchText;
     });
-  }, [config.records, search, status]);
+  }, [data.records, search, status]);
 
   const selected =
     filtered.find((record) => record.id === selectedId) ?? filtered[0] ?? null;
 
   const statuses = [
     "all",
-    ...Array.from(new Set(config.records.map((record) => record.status))),
+    ...Array.from(new Set(data.records.map((record) => record.status))),
   ];
 
   return (
     <main style={{ padding: 24, fontFamily: "Inter, system-ui, sans-serif" }}>
       <header style={{ marginBottom: 16 }}>
-        <p style={{ color: "#64748b", margin: 0 }}>Operations / {config.title}</p>
-        <h1 style={{ margin: "8px 0" }}>{config.title}</h1>
-        <p style={{ margin: 0, color: "#475569" }}>{config.subtitle}</p>
+        <p style={{ color: "#64748b", margin: 0 }}>Operations / {data.title}</p>
+        <h1 style={{ margin: "8px 0" }}>{data.title}</h1>
+        <p style={{ margin: 0, color: "#475569" }}>{data.subtitle}</p>
       </header>
 
       <div style={{ marginBottom: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -94,7 +114,7 @@ export default function ModulePage({ moduleKey }: { moduleKey: ModuleKey }) {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead style={{ background: "#f8fafc" }}>
               <tr>
-                {config.columns.map((column) => (
+                {data.columns.map((column) => (
                   <th key={column.key} style={{ textAlign: "left", padding: 10, borderBottom: "1px solid #e2e8f0" }}>
                     {column.label}
                   </th>
@@ -108,7 +128,7 @@ export default function ModulePage({ moduleKey }: { moduleKey: ModuleKey }) {
                   onClick={() => setSelectedId(record.id)}
                   style={{ background: selected?.id === record.id ? "#eef2ff" : "#fff", cursor: "pointer" }}
                 >
-                  {config.columns.map((column) => (
+                  {data.columns.map((column) => (
                     <td key={column.key} style={{ padding: 10, borderBottom: "1px solid #f1f5f9" }}>
                       {record[column.key]}
                     </td>
